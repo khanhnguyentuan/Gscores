@@ -71,7 +71,7 @@ g-scores/
 
 1. Clone repository
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/khanhnguyentuan/Gscores.git
    cd g-scores
    ```
 
@@ -94,16 +94,6 @@ g-scores/
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:5000/api
 
-## Triển khai
-
-### Triển khai trên Render
-
-Dự án được cấu hình sẵn để triển khai trên Render sử dụng file `render.yaml`:
-
-1. Fork repository này về tài khoản GitHub của bạn
-2. Đăng ký tài khoản trên [Render](https://render.com)
-3. Tạo một Blueprint mới với repo GitHub của bạn
-4. Render sẽ tự động triển khai backend, frontend và database
 
 ## Đóng góp
 
