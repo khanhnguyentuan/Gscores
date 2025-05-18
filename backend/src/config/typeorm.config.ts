@@ -6,7 +6,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 export const typeOrmConfig: TypeOrmModuleOptions = {
-  type: process.env.DATABASE_TYPE || 'mysql',
+  type: 'mysql',
   host: process.env.DATABASE_HOST || process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DATABASE_PORT || process.env.DB_PORT || '3306', 10),
   username: process.env.DATABASE_USER || process.env.DB_USERNAME || 'root',
