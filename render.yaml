@@ -64,11 +64,11 @@ databases:
     databaseName: g_scores
     user: g_scores_user
 
-# Cấu hình deployment group
-deploymentGroups:
-  - name: g-scores-group
-    services:
-      - g-scores-api
-      - g-scores-client
-    databases:
-      - g-scores-db 
+# # Cấu hình deployment group
+# deploymentGroups:
+#   - name: g-scores-group
+#     services:
+#       - g-scores-api
+#       - g-scores-client
+#     databases:
+#       - g-scores-db 
