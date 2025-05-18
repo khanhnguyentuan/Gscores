@@ -52,7 +52,7 @@ services:
         fromService:
           name: g-scores-api
           type: web
-          property: url
+          property: host
       - key: NODE_ENV
         value: production
 
@@ -62,13 +62,4 @@ databases:
     plan: free
     region: singapore
     databaseName: g_scores
-    user: g_scores_user
-
-# # Cấu hình deployment group
-# deploymentGroups:
-#   - name: g-scores-group
-#     services:
-#       - g-scores-api
-#       - g-scores-client
-#     databases:
-#       - g-scores-db 
+    user: g_scores_user 
