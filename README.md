@@ -1,4 +1,4 @@
-# G-Scores
+
 
 Ứng dụng web hiển thị và phân tích điểm thi THPT 2024.
 
@@ -8,6 +8,16 @@
 - Phân tích điểm theo 4 mức: >=8, 6-8, 4-6, <4
 - Danh sách top học sinh khối A (Toán, Lý, Hóa)
 - Giao diện responsive, thân thiện với người dùng
+## Giao diện
+- Tra cứu điểm thi
+![image](https://github.com/user-attachments/assets/72ecf792-49ac-4e78-84b5-294353861294)
+- Thống kê 10 học sinh top
+  ![image](https://github.com/user-attachments/assets/febbd68c-76a9-42a1-971c-65c4670bd3d9)
+
+- Báo cáo phân loại
+  ![image](https://github.com/user-attachments/assets/202ae95a-97c3-49fa-8207-f6336dae76c1)
+
+
 
 ## Công nghệ sử dụng
 
