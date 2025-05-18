@@ -41,7 +41,7 @@ g-scores/
 
 1. Clone repository
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/khanhnguyentuan/Gscores.git
    cd g-scores
    ```
 
