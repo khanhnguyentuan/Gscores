@@ -1,0 +1,74 @@
+services:
+  # Backend service - NestJS API
+  - type: web
+    name: g-scores-api
+    runtime: node
+    rootDir: backend
+    region: singapore # Chọn region gần Việt Nam
+    plan: free # Sử dụng free tier (đổi thành starter nếu cần)
+    buildCommand: npm install && npm run build
+    startCommand: node dist/main
+    healthCheckPath: /api
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: g-scores-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: g-scores-db
+          property: port
+      - key: DB_USERNAME
+        fromDatabase:
+          name: g-scores-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: g-scores-db
+          property: password
+      - key: DB_DATABASE
+        fromDatabase:
+          name: g-scores-db
+          property: database
+      - key: DB_SYNCHRONIZE
+        value: "true"
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DB_TYPE
+        value: postgres # Điều chỉnh để sử dụng PostgreSQL trên Render
+
+  # Frontend static site - React
+  - type: web
+    name: g-scores-client
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    pullRequestPreviewsEnabled: true # Tạo preview cho PR
+    envVars:
+      - key: REACT_APP_API_URL
+        fromService:
+          name: g-scores-api
+          type: web
+          property: url
+      - key: NODE_ENV
+        value: production
+
+# Database PostgreSQL (Render managed database)
+databases:
+  - name: g-scores-db
+    plan: free
+    region: singapore
+    databaseName: g_scores
+    user: g_scores_user
+
+# Cấu hình deployment group
+deploymentGroups:
+  - name: g-scores-group
+    services:
+      - g-scores-api
+      - g-scores-client
+    databases:
+      - g-scores-db 
