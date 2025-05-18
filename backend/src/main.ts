@@ -36,6 +36,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
   
+  // Thêm health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.status(200).send('OK');
+  });
+  
   // Khởi động ứng dụng
   const port = process.env.PORT || 3000;
   await app.listen(port);

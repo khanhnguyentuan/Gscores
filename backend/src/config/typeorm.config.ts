@@ -6,14 +6,15 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 export const typeOrmConfig: TypeOrmModuleOptions = {
-  type: 'mysql',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306', 10),
-  username: process.env.DB_USERNAME || 'root',
-  password: process.env.DB_PASSWORD || 'root',
-  database: process.env.DB_DATABASE || 'g_scores',
+  type: process.env.DATABASE_TYPE || 'mysql',
+  host: process.env.DATABASE_HOST || process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DATABASE_PORT || process.env.DB_PORT || '3306', 10),
+  username: process.env.DATABASE_USER || process.env.DB_USERNAME || 'root',
+  password: process.env.DATABASE_PASSWORD || process.env.DB_PASSWORD || 'root',
+  database: process.env.DATABASE_NAME || process.env.DB_DATABASE || 'g_scores',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   synchronize: true,
+  ssl: process.env.DATABASE_SSL === 'true',
 };
 
 // Override hàm generateString để sử dụng uuid thay vì crypto

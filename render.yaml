@@ -1,65 +1,52 @@
 services:
   # Backend service - NestJS API
   - type: web
-    name: g-scores-api
+    name: g-scores-backend
     runtime: node
-    rootDir: backend
-    region: singapore # Chọn region gần Việt Nam
-    plan: free # Sử dụng free tier (đổi thành starter nếu cần)
-    buildCommand: npm install && npm run build
-    startCommand: node dist/main
-    healthCheckPath: /api
+    buildCommand: npm install -g @nestjs/cli && npm install && npm run build
+    startCommand: npm run start:prod
     envVars:
-      - key: DB_HOST
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_HOST
         fromDatabase:
           name: g-scores-db
           property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: g-scores-db
-          property: port
-      - key: DB_USERNAME
+      - key: DATABASE_USER
         fromDatabase:
           name: g-scores-db
           property: user
-      - key: DB_PASSWORD
+      - key: DATABASE_PASSWORD
         fromDatabase:
           name: g-scores-db
           property: password
-      - key: DB_DATABASE
+      - key: DATABASE_NAME
         fromDatabase:
           name: g-scores-db
           property: database
-      - key: DB_SYNCHRONIZE
-        value: "true"
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 5000
-      - key: DB_TYPE
-        value: postgres # Điều chỉnh để sử dụng PostgreSQL trên Render
+      - key: DATABASE_PORT
+        fromDatabase:
+          name: g-scores-db
+          property: port
+      - key: DATABASE_TYPE
+        value: postgres
+    rootDir: backend
+    healthCheckPath: /api/health
 
   # Frontend static site - React
   - type: web
-    name: g-scores-client
-    runtime: static
-    rootDir: frontend
+    name: g-scores-frontend
+    runtime: node
     buildCommand: npm install && npm run build
-    staticPublishPath: ./build
-    pullRequestPreviewsEnabled: true # Tạo preview cho PR
+    startCommand: npx serve -s build
     envVars:
       - key: REACT_APP_API_URL
-        fromService:
-          name: g-scores-api
-          type: web
-          property: host
-      - key: NODE_ENV
-        value: production
+        value: https://g-scores-backend.onrender.com
+    rootDir: frontend
 
 # Database PostgreSQL (Render managed database)
 databases:
   - name: g-scores-db
-    plan: free
-    region: singapore
     databaseName: g_scores
-    user: g_scores_user 
+    plan: free
+    ipAllowList: [] 
