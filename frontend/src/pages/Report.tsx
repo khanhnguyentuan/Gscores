@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -9,7 +9,9 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { FaChartBar, FaTable, FaInfoCircle } from 'react-icons/fa';
+import { FaChartBar, FaTable, FaInfoCircle, FaSpinner } from 'react-icons/fa';
+import { IconType } from 'react-icons';
+import { getScoreLevelsBySubject } from '../api';
 
 // Đăng ký các thành phần của Chart.js
 ChartJS.register(
@@ -21,94 +23,14 @@ ChartJS.register(
   Legend
 );
 
-// Dữ liệu cứng từ API đã chạy sẵn
-const scoreDataBySubject = [
-  {
-    "subject": "Toán",
-    "subjectCode": "toan",
-    "excellent": 198392,
-    "good": 505836,
-    "average": 258654,
-    "poor": 82731,
-    "total": 1045613
-  },
-  {
-    "subject": "Ngữ văn",
-    "subjectCode": "ngu_van",
-    "excellent": 377879,
-    "good": 513116,
-    "average": 141056,
-    "poor": 18050,
-    "total": 1050101
-  },
-  {
-    "subject": "Ngoại ngữ",
-    "subjectCode": "ngoai_ngu",
-    "excellent": 133483,
-    "good": 219652,
-    "average": 363532,
-    "poor": 196038,
-    "total": 912705
-  },
-  {
-    "subject": "Vật lý",
-    "subjectCode": "vat_li",
-    "excellent": 94146,
-    "good": 148641,
-    "average": 79272,
-    "poor": 23556,
-    "total": 345615
-  },
-  {
-    "subject": "Hóa học",
-    "subjectCode": "hoa_hoc",
-    "excellent": 93333,
-    "good": 144959,
-    "average": 88447,
-    "poor": 19779,
-    "total": 346518
-  },
-  {
-    "subject": "Sinh học",
-    "subjectCode": "sinh_hoc",
-    "excellent": 34438,
-    "good": 182049,
-    "average": 116263,
-    "poor": 9628,
-    "total": 342378
-  },
-  {
-    "subject": "Lịch sử",
-    "subjectCode": "lich_su",
-    "excellent": 138533,
-    "good": 342577,
-    "average": 200392,
-    "poor": 24712,
-    "total": 706214
-  },
-  {
-    "subject": "Địa lý",
-    "subjectCode": "dia_li",
-    "excellent": 218515,
-    "good": 382087,
-    "average": 96226,
-    "poor": 7854,
-    "total": 704682
-  },
-  {
-    "subject": "Giáo dục công dân",
-    "subjectCode": "gdcd",
-    "excellent": 384222,
-    "good": 181440,
-    "average": 16886,
-    "poor": 1061,
-    "total": 583609
-  }
-];
+// Hàm hiển thị biểu tượng
+const renderIcon = (Icon: IconType, props = {}) => {
+  return React.createElement(Icon as React.ComponentType<any>, props);
+};
 
 // Chuyển đổi dữ liệu sang định dạng phần trăm
-const calculatePercentages = () => {
-  return scoreDataBySubject.map(subject => ({
+const calculatePercentages = (scoreData: any[]) => {
+  return scoreData.map(subject => ({
     subject: subject.subject,
     subjectCode: subject.subjectCode,
     excellent: Math.round((subject.excellent / subject.total) * 100),
@@ -122,11 +44,52 @@ const calculatePercentages = () => {
 const Report: React.FC = () => {
   const [viewMode, setViewMode] = useState<'absolute' | 'percentage'>('absolute');
   const [chartType, setChartType] = useState<'stacked' | 'grouped'>('stacked');
+  const [scoreDataBySubject, setScoreDataBySubject] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const data = await getScoreLevelsBySubject();
+        setScoreDataBySubject(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching score levels data:', err);
+        setError('Không thể tải dữ liệu. Vui lòng thử lại sau.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Hiện loading state khi đang tải dữ liệu
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin text-primary text-4xl">
+          {renderIcon(FaSpinner)}
+        </div>
+      </div>
+    );
+  }
+
+  // Hiện thông báo lỗi nếu không lấy được dữ liệu
+  if (error || !scoreDataBySubject || scoreDataBySubject.length === 0) {
+    return (
+      <div className="text-center text-red-500 p-4">
+        <p>{error || 'Không có dữ liệu'}</p>
+      </div>
+    );
+  }
 
   // Chuẩn bị dữ liệu cho biểu đồ
   const prepareChartData = () => {
     const isPercentage = viewMode === 'percentage';
-    const dataToShow = isPercentage ? calculatePercentages() : scoreDataBySubject;
+    const dataToShow = isPercentage ? calculatePercentages(scoreDataBySubject) : scoreDataBySubject;
     
     const labels = dataToShow.map(item => item.subject);
     
@@ -251,7 +214,7 @@ const Report: React.FC = () => {
       {/* Thẻ thông tin */}
       <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 flex items-start mb-2">
         <div className="text-blue-500 mr-3 mt-1">
-          {FaInfoCircle({ size: 20 })}
+          <span>{renderIcon(FaInfoCircle, { size: 20 })}</span>
         </div>
         <div>
           <h3 className="font-medium text-blue-800 mb-1">Thống kê theo 4 mức độ điểm</h3>
@@ -305,8 +268,8 @@ const Report: React.FC = () => {
       {/* Chú thích */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="flex items-center bg-white rounded-lg p-3 border-l-4 border-teal-500 shadow-sm">
-          <div className="bg-teal-100 p-2 rounded-lg mr-3">
-            {FaChartBar({ className: "text-teal-500" })}
+          <div className="bg-teal-100 p-2 rounded-lg mr-3 text-teal-500">
+            <span>{renderIcon(FaChartBar, { size: 16 })}</span>
           </div>
           <div>
             <h3 className="font-medium text-teal-600">Giỏi</h3>
@@ -315,8 +278,8 @@ const Report: React.FC = () => {
         </div>
         
         <div className="flex items-center bg-white rounded-lg p-3 border-l-4 border-blue-500 shadow-sm">
-          <div className="bg-blue-100 p-2 rounded-lg mr-3">
-            {FaChartBar({ className: "text-blue-500" })}
+          <div className="bg-blue-100 p-2 rounded-lg mr-3 text-blue-500">
+            <span>{renderIcon(FaChartBar, { size: 16 })}</span>
           </div>
           <div>
             <h3 className="font-medium text-blue-600">Khá</h3>
@@ -325,8 +288,8 @@ const Report: React.FC = () => {
         </div>
         
         <div className="flex items-center bg-white rounded-lg p-3 border-l-4 border-amber-500 shadow-sm">
-          <div className="bg-amber-100 p-2 rounded-lg mr-3">
-            {FaChartBar({ className: "text-amber-500" })}
+          <div className="bg-amber-100 p-2 rounded-lg mr-3 text-amber-500">
+            <span>{renderIcon(FaChartBar, { size: 16 })}</span>
           </div>
           <div>
             <h3 className="font-medium text-amber-600">Trung bình</h3>
@@ -335,8 +298,8 @@ const Report: React.FC = () => {
         </div>
         
         <div className="flex items-center bg-white rounded-lg p-3 border-l-4 border-red-500 shadow-sm">
-          <div className="bg-red-100 p-2 rounded-lg mr-3">
-            {FaChartBar({ className: "text-red-500" })}
+          <div className="bg-red-100 p-2 rounded-lg mr-3 text-red-500">
+            <span>{renderIcon(FaChartBar, { size: 16 })}</span>
           </div>
           <div>
             <h3 className="font-medium text-red-600">Yếu</h3>
@@ -356,7 +319,7 @@ const Report: React.FC = () => {
       <div className="bg-white p-4 rounded-lg shadow-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold flex items-center">
-            {FaTable({ className: "mr-2 text-gray-600" })}
+            <span className="mr-2 text-gray-600">{renderIcon(FaTable, { size: 16 })}</span>
             Bảng dữ liệu chi tiết
           </h2>
           <div className="text-sm text-gray-500">

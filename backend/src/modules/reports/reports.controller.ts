@@ -45,4 +45,20 @@ export class ReportsController {
   ) {
     return this.reportsService.getTopStudentsGroupA(limit, offset);
   }
+
+  @Get('refresh-cache')
+  @ApiOperation({ summary: 'Cập nhật cache cho báo cáo', description: 'Yêu cầu hệ thống tính toán lại và cập nhật cache cho các báo cáo thống kê.' })
+  @ApiResponse({ status: 200, description: 'Cache đã được cập nhật thành công.' })
+  async refreshCache() {
+    await this.reportsService.refreshScoreLevelCache();
+    return { message: 'Cache đã được cập nhật thành công' };
+  }
+
+  @Get('refresh-top-students')
+  @ApiOperation({ summary: 'Cập nhật cache cho top học sinh khối A', description: 'Yêu cầu hệ thống tính toán lại và cập nhật cache cho top học sinh khối A.' })
+  @ApiResponse({ status: 200, description: 'Cache đã được cập nhật thành công.' })
+  async refreshTopStudentsCache() {
+    await this.reportsService.refreshTopStudentsCache();
+    return { message: 'Cache top học sinh khối A đã được cập nhật thành công' };
+  }
 } 

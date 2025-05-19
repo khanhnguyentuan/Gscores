@@ -7,11 +7,16 @@ import { Subject } from '../subjects/entities/subject.entity';
 import { SubjectStatistic, PassingRate, GenderStatistic, ScoreLevelStatistic, ScoreLevelBySubject, GroupAStudent } from './interfaces/report.interfaces';
 import { Cache } from '@nestjs/cache-manager';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ScoreLevelBySubject as ScoreLevelBySubjectEntity } from './entities/score-level-by-subject.entity';
+import { TopStudentsGroupA } from './entities/top-students-group-a.entity';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
   private readonly CACHE_DURATION = 3600; // 1 giờ cache
+  // Biến cờ để đánh dấu index đã được tạo hay chưa
+  private indexesCreated = false;
 
   // Định nghĩa constant cho các khoảng điểm
   private readonly SCORE_RANGES = [
@@ -42,6 +47,10 @@ export class ReportsService {
     private readonly scoreRepository: Repository<Score>,
     @InjectRepository(Subject)
     private readonly subjectRepository: Repository<Subject>,
+    @InjectRepository(ScoreLevelBySubjectEntity)
+    private readonly scoreLevelBySubjectRepository: Repository<ScoreLevelBySubjectEntity>,
+    @InjectRepository(TopStudentsGroupA)
+    private readonly topStudentsGroupARepository: Repository<TopStudentsGroupA>,
     private dataSource: DataSource,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
@@ -404,68 +413,161 @@ export class ReportsService {
   }
 
   /**
+   * Tính toán và cập nhật dữ liệu score levels vào bảng cache
+   * Thực hiện mỗi giờ hoặc có thể gọi theo yêu cầu
+   */
+  @Cron('0 0 * * * *') // Chạy đầu mỗi giờ
+  async refreshScoreLevelCache(): Promise<void> {
+    this.logger.log('Refreshing score level cache...');
+    
+    try {
+      // Đảm bảo các index đã được tạo
+      if (!this.indexesCreated) {
+        await this.createPerformanceIndexes();
+        this.indexesCreated = true;
+      }
+      
+      // Lấy tất cả các môn học
+      const subjects = await this.subjectRepository.find();
+      
+      // Tính toán và cập nhật từng môn học
+      for (const subject of subjects) {
+        const stats = await this.scoreRepository
+          .createQueryBuilder('score')
+          .where('score.subject_id = :subjectId', { subjectId: subject.id })
+          .select('COUNT(score.id)', 'total')
+          .addSelect(`SUM(CASE WHEN score.score >= ${this.SCORE_LEVELS.excellent.min} THEN 1 ELSE 0 END)`, 'excellent')
+          .addSelect(`SUM(CASE WHEN score.score >= ${this.SCORE_LEVELS.good.min} AND score.score < ${this.SCORE_LEVELS.good.max} THEN 1 ELSE 0 END)`, 'good')
+          .addSelect(`SUM(CASE WHEN score.score >= ${this.SCORE_LEVELS.average.min} AND score.score < ${this.SCORE_LEVELS.average.max} THEN 1 ELSE 0 END)`, 'average')
+          .addSelect(`SUM(CASE WHEN score.score < ${this.SCORE_LEVELS.poor.max} THEN 1 ELSE 0 END)`, 'poor')
+          .getRawOne();
+        
+        // Lưu hoặc cập nhật vào bảng cache
+        await this.scoreLevelBySubjectRepository.save({
+          subjectId: subject.id,
+          subjectName: subject.name,
+          subjectCode: subject.code,
+          excellent: Number(stats.excellent) || 0,
+          good: Number(stats.good) || 0,
+          average: Number(stats.average) || 0,
+          poor: Number(stats.poor) || 0,
+          total: Number(stats.total) || 0,
+        });
+      }
+      
+      // Xóa cache để lần sau lấy dữ liệu mới từ bảng cache
+      await this.cacheManager.del('score_levels_by_subject');
+      
+      this.logger.log('Score level cache refreshed successfully');
+    } catch (error) {
+      this.logger.error(`Failed to refresh score level cache: ${error.message}`);
+    }
+  }
+
+  /**
    * Thống kê số lượng học sinh theo 4 cấp độ điểm cho từng môn học
+   * Đã tối ưu để đọc từ bảng cache thay vì tính toán trực tiếp
    */
   async getScoreLevelsBySubject(): Promise<ScoreLevelBySubject[]> {
     const cacheKey = 'score_levels_by_subject';
     
-    // Kiểm tra cache
+    // Kiểm tra cache trong memory
     const cachedData = await this.cacheManager.get<ScoreLevelBySubject[]>(cacheKey);
     if (cachedData) {
       this.logger.log(`Cache hit for ${cacheKey}`);
       return cachedData;
     }
     
-    this.logger.log(`Cache miss for ${cacheKey}, querying database...`);
+    this.logger.log(`Cache miss for ${cacheKey}, querying from cache table...`);
     
-    // Thực hiện truy vấn tối ưu với một lần query duy nhất
-    const results = await this.scoreRepository
-      .createQueryBuilder('score')
-      .innerJoin('score.subject', 'subject')
-      .select('subject.name', 'subject')
-      .addSelect('subject.code', 'subjectCode')
-      .addSelect('COUNT(score.id)', 'total')
-      .addSelect(`SUM(CASE WHEN score.score >= ${this.SCORE_LEVELS.excellent.min} THEN 1 ELSE 0 END)`, 'excellent')
-      .addSelect(`SUM(CASE WHEN score.score >= ${this.SCORE_LEVELS.good.min} AND score.score < ${this.SCORE_LEVELS.good.max} THEN 1 ELSE 0 END)`, 'good')
-      .addSelect(`SUM(CASE WHEN score.score >= ${this.SCORE_LEVELS.average.min} AND score.score < ${this.SCORE_LEVELS.average.max} THEN 1 ELSE 0 END)`, 'average')
-      .addSelect(`SUM(CASE WHEN score.score < ${this.SCORE_LEVELS.poor.max} THEN 1 ELSE 0 END)`, 'poor')
-      .groupBy('subject.id')
-      .addGroupBy('subject.name')
-      .addGroupBy('subject.code')
-      .getRawMany();
-      
-    // Format kết quả
-    const formattedResults = results.map(r => ({
-      subject: r.subject,
+    // Đảm bảo bảng cache đã có dữ liệu (nếu bảng rỗng, tính toán lại)
+    const count = await this.scoreLevelBySubjectRepository.count();
+    if (count === 0) {
+      this.logger.log('Cache table empty, refreshing data...');
+      await this.refreshScoreLevelCache();
+    }
+    
+    // Lấy dữ liệu từ bảng cache thay vì tính toán trực tiếp
+    const results = await this.scoreLevelBySubjectRepository.find();
+    
+    // Format kết quả theo interface đã định nghĩa
+    const formattedResults: ScoreLevelBySubject[] = results.map(r => ({
+      subject: r.subjectName,
       subjectCode: r.subjectCode,
-      excellent: Number(r.excellent) || 0,
-      good: Number(r.good) || 0,
-      average: Number(r.average) || 0,
-      poor: Number(r.poor) || 0,
-      total: Number(r.total) || 0
+      excellent: r.excellent,
+      good: r.good,
+      average: r.average,
+      poor: r.poor,
+      total: r.total
     }));
     
-    // Lưu vào cache
-    await this.cacheManager.set(cacheKey, formattedResults, this.CACHE_DURATION);
+    // Lưu vào memory cache để truy cập nhanh hơn
+    await this.cacheManager.set(cacheKey, formattedResults, this.CACHE_DURATION * 2);
     
     return formattedResults;
   }
 
   /**
-   * Lấy top học sinh khối A (toán, lý, hóa)
+   * Tính toán và cập nhật dữ liệu top students khối A vào bảng cache
+   * Thực hiện mỗi 2 giờ hoặc có thể gọi theo yêu cầu
    */
-  async getTopStudentsGroupA(limit = 10, offset = 0) {
-    const cacheKey = `top_students_group_a_${limit}_${offset}`;
+  @Cron('0 0 */2 * * *') // Chạy mỗi 2 giờ
+  async refreshTopStudentsCache(): Promise<void> {
+    this.logger.log('Refreshing top students cache...');
     
-    // Kiểm tra cache
-    const cachedData = await this.cacheManager.get(cacheKey);
-    if (cachedData) {
-      this.logger.log(`Cache hit for ${cacheKey}`);
-      return cachedData;
+    try {
+      // Đảm bảo các index đã được tạo
+      if (!this.indexesCreated) {
+        await this.createPerformanceIndexes();
+        this.indexesCreated = true;
+      }
+      
+      // Tính toán top 100 học sinh
+      const result = await this.calculateTopStudents(100, 0);
+      
+      // Lưu vào bảng cache
+      await this.dataSource.transaction(async manager => {
+        // Xóa dữ liệu cũ
+        await manager.query('TRUNCATE TABLE top_students_group_a');
+        
+        // Insert dữ liệu mới
+        for (const student of result.topStudents) {
+          await manager.query(`
+            INSERT INTO top_students_group_a
+            (\`rank\`, studentId, studentName, studentCode, toan, vat_li, hoa_hoc, total, average)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            student.rank,
+            student.student.id,
+            student.student.name,
+            student.student.studentCode,
+            student.scores.toan,
+            student.scores.vat_li,
+            student.scores.hoa_hoc,
+            student.total,
+            student.average
+          ]);
+        }
+      });
+      
+      // Xóa memory cache
+      const keys = await this.cacheManager.store.keys();
+      for (const key of keys) {
+        if (key.startsWith('top_students_group_a_')) {
+          await this.cacheManager.del(key);
+        }
+      }
+      
+      this.logger.log('Top students cache refreshed successfully');
+    } catch (error) {
+      this.logger.error(`Failed to refresh top students cache: ${error.message}`);
     }
-    
-    this.logger.log(`Cache miss for ${cacheKey}, querying database...`);
-    
+  }
+  
+  /**
+   * Hàm nội bộ để tính toán top students
+   */
+  private async calculateTopStudents(limit = 10, offset = 0) {
     // Lấy ID của các môn khối A
     const [toan, vatLy, hoaHoc] = await Promise.all([
       this.subjectRepository.findOne({ where: { code: 'toan' } }),
@@ -548,7 +650,7 @@ export class ReportsService {
       average: Number(Number(item.average).toFixed(2))
     }));
     
-    const result = {
+    return {
       topStudents,
       pagination: {
         total: countQueryResult,
@@ -556,9 +658,66 @@ export class ReportsService {
         offset
       }
     };
+  }
+
+  /**
+   * Lấy top học sinh khối A (toán, lý, hóa)
+   * Đã tối ưu để đọc từ bảng cache thay vì tính toán trực tiếp
+   */
+  async getTopStudentsGroupA(limit = 10, offset = 0) {
+    const cacheKey = `top_students_group_a_${limit}_${offset}`;
     
-    // Lưu vào cache
-    await this.cacheManager.set(cacheKey, result, this.CACHE_DURATION);
+    // Kiểm tra memory cache
+    const cachedData = await this.cacheManager.get(cacheKey);
+    if (cachedData) {
+      this.logger.log(`Cache hit for ${cacheKey}`);
+      return cachedData;
+    }
+    
+    this.logger.log(`Cache miss for ${cacheKey}, querying from cache table...`);
+    
+    // Đảm bảo bảng cache đã có dữ liệu (nếu bảng rỗng, tính toán lại)
+    const count = await this.topStudentsGroupARepository.count();
+    if (count === 0) {
+      this.logger.log('Cache table empty, refreshing data...');
+      await this.refreshTopStudentsCache();
+    }
+    
+    // Lấy dữ liệu từ bảng cache
+    const cachedStudents = await this.topStudentsGroupARepository.find({
+      order: { [`rank`]: 'ASC' },
+      take: limit,
+      skip: offset
+    });
+    
+    // Format kết quả theo interface đã định nghĩa
+    const topStudents = cachedStudents.map(item => ({
+      rank: item.rank,
+      student: {
+        id: item.studentId,
+        name: item.studentName,
+        studentCode: item.studentCode
+      },
+      scores: {
+        toan: Number(item.toan),
+        vat_li: Number(item.vat_li),
+        hoa_hoc: Number(item.hoa_hoc)
+      },
+      total: Number(item.total),
+      average: Number(item.average)
+    }));
+    
+    const result = {
+      topStudents,
+      pagination: {
+        total: count,
+        limit,
+        offset
+      }
+    };
+    
+    // Lưu vào memory cache để truy cập nhanh hơn
+    await this.cacheManager.set(cacheKey, result, this.CACHE_DURATION * 2);
     
     return result;
   }
@@ -588,19 +747,93 @@ export class ReportsService {
     this.logger.log('Creating performance indexes...');
     
     try {
-      // Tạo chỉ mục cho cột score
-      await this.dataSource.query(`
-        CREATE INDEX IF NOT EXISTS idx_score_value ON scores (score);
-      `);
+      // Trong MySQL không có IF NOT EXISTS cho CREATE INDEX
+      // Thay vào đó, chúng ta kiểm tra xem index đã tồn tại chưa
       
-      // Tạo chỉ mục cho subject_code
+      // Kiểm tra và tạo index trên cột score
       await this.dataSource.query(`
-        CREATE INDEX IF NOT EXISTS idx_subject_code ON subjects (code);
-      `);
+        SELECT COUNT(1) as IndexExists
+        FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE table_schema = DATABASE()
+        AND table_name = 'scores'
+        AND index_name = 'idx_score_value'
+      `).then(async (result) => {
+        if (result[0].IndexExists === 0) {
+          this.logger.log('Tạo index idx_score_value');
+          await this.dataSource.query('CREATE INDEX idx_score_value ON scores (score)');
+        } else {
+          this.logger.log('Index idx_score_value đã tồn tại');
+        }
+      });
+      
+      // Kiểm tra và tạo index trên subject_code
+      await this.dataSource.query(`
+        SELECT COUNT(1) as IndexExists
+        FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE table_schema = DATABASE()
+        AND table_name = 'subjects'
+        AND index_name = 'idx_subject_code'
+      `).then(async (result) => {
+        if (result[0].IndexExists === 0) {
+          this.logger.log('Tạo index idx_subject_code');
+          await this.dataSource.query('CREATE INDEX idx_subject_code ON subjects (code)');
+        } else {
+          this.logger.log('Index idx_subject_code đã tồn tại');
+        }
+      });
+      
+      // Kiểm tra và tạo index trên foreign key subject_id
+      await this.dataSource.query(`
+        SELECT COUNT(1) as IndexExists
+        FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE table_schema = DATABASE()
+        AND table_name = 'scores'
+        AND index_name = 'idx_score_subject_id'
+      `).then(async (result) => {
+        if (result[0].IndexExists === 0) {
+          this.logger.log('Tạo index idx_score_subject_id');
+          await this.dataSource.query('CREATE INDEX idx_score_subject_id ON scores (subject_id)');
+        } else {
+          this.logger.log('Index idx_score_subject_id đã tồn tại');
+        }
+      });
+      
+      // Kiểm tra và tạo index trên student_id trong scores - tối ưu hóa việc JOIN và GROUP BY
+      await this.dataSource.query(`
+        SELECT COUNT(1) as IndexExists
+        FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE table_schema = DATABASE()
+        AND table_name = 'scores'
+        AND index_name = 'idx_score_student_id'
+      `).then(async (result) => {
+        if (result[0].IndexExists === 0) {
+          this.logger.log('Tạo index idx_score_student_id');
+          await this.dataSource.query('CREATE INDEX idx_score_student_id ON scores (student_id)');
+        } else {
+          this.logger.log('Index idx_score_student_id đã tồn tại');
+        }
+      });
+      
+      // Kiểm tra và tạo index kết hợp cho student_id và subject_id - tối ưu hóa JOIN kép
+      await this.dataSource.query(`
+        SELECT COUNT(1) as IndexExists
+        FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE table_schema = DATABASE()
+        AND table_name = 'scores'
+        AND index_name = 'idx_score_student_subject'
+      `).then(async (result) => {
+        if (result[0].IndexExists === 0) {
+          this.logger.log('Tạo index idx_score_student_subject');
+          await this.dataSource.query('CREATE INDEX idx_score_student_subject ON scores (student_id, subject_id)');
+        } else {
+          this.logger.log('Index idx_score_student_subject đã tồn tại');
+        }
+      });
       
       this.logger.log('Created performance indexes successfully');
     } catch (error) {
       this.logger.error(`Error creating indexes: ${error.message}`);
+      throw error; // Ném lỗi để biết đã thất bại
     }
   }
 }

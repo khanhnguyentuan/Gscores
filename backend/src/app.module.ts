@@ -9,7 +9,7 @@ import { SubjectsModule } from './modules/subjects/subjects.module';
 import { ScoresModule } from './modules/scores/scores.module';
 import { ImportModule } from './modules/import/import.module';
 import { CacheModule } from '@nestjs/cache-manager';
-import { typeOrmConfig } from './config/typeorm.config';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -20,7 +20,18 @@ import { typeOrmConfig } from './config/typeorm.config';
       isGlobal: true,
       ttl: 3600, // 1 giờ cache
     }),
-    TypeOrmModule.forRoot(typeOrmConfig),
+    ScheduleModule.forRoot(),
+    TypeOrmModule.forRoot({
+      type: 'mysql',
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '3306', 10),
+      username: process.env.DB_USERNAME || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_DATABASE || 'g_scores',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      synchronize: true, // Tắt đồng bộ hóa tự động để đảm bảo an toàn dữ liệu
+      logging: process.env.NODE_ENV === 'development',
+    }),
     StudentsModule,
     ReportsModule,
     SubjectsModule,

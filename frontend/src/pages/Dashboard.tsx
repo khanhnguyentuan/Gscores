@@ -1,5 +1,12 @@
-import React from 'react';
-import { FaMedal, FaTrophy, FaChartLine, FaGraduationCap } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { 
+  FaMedal, 
+  FaTrophy, 
+  FaChartLine, 
+  FaGraduationCap, 
+  FaSpinner 
+} from 'react-icons/fa';
+import { IconType } from 'react-icons';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -10,6 +17,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import { getTopStudentsGroupA } from '../api';
 
 // Đăng ký các thành phần cần thiết cho biểu đồ
 ChartJS.register(
@@ -20,6 +28,11 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+
+// Hàm hiển thị biểu tượng
+const renderIcon = (Icon: IconType, props = {}) => {
+  return React.createElement(Icon as React.ComponentType<any>, props);
+};
 
 // Hàm chuẩn hóa điểm số
 const normalizeScore = (score: number): number => {
@@ -32,201 +45,82 @@ const formatScore = (score: number): string => {
   return normalizedScore === 10 ? "10" : normalizedScore.toFixed(2);
 };
 
-// Dữ liệu cứng từ API đã chạy sẵn
-const topStudentsData = {
-  "topStudents": [
-    {
-      "rank": 1,
-      "student": {
-        "id": "26020938",
-        "name": "Học sinh 26020938",
-        "studentCode": "26020938"
-      },
-      "scores": {
-        "toan": 9.6,
-        "vat_li": 9.99,
-        "hoa_hoc": 9.99
-      },
-      "total": 29.58,
-      "average": 9.86
-    },
-    {
-      "rank": 2,
-      "student": {
-        "id": "26009943",
-        "name": "Học sinh 26009943",
-        "studentCode": "26009943"
-      },
-      "scores": {
-        "toan": 9.8,
-        "vat_li": 9.75,
-        "hoa_hoc": 9.99
-      },
-      "total": 29.54,
-      "average": 9.85
-    },
-    {
-      "rank": 3,
-      "student": {
-        "id": "19016615",
-        "name": "Học sinh 19016615",
-        "studentCode": "19016615"
-      },
-      "scores": {
-        "toan": 9.6,
-        "vat_li": 9.75,
-        "hoa_hoc": 9.99
-      },
-      "total": 29.34,
-      "average": 9.78
-    },
-    {
-      "rank": 4,
-      "student": {
-        "id": "19013166",
-        "name": "Học sinh 19013166",
-        "studentCode": "19013166"
-      },
-      "scores": {
-        "toan": 9.8,
-        "vat_li": 9.75,
-        "hoa_hoc": 9.75
-      },
-      "total": 29.3,
-      "average": 9.77
-    },
-    {
-      "rank": 5,
-      "student": {
-        "id": "55006046",
-        "name": "Học sinh 55006046",
-        "studentCode": "55006046"
-      },
-      "scores": {
-        "toan": 9.8,
-        "vat_li": 9.5,
-        "hoa_hoc": 9.99
-      },
-      "total": 29.29,
-      "average": 9.76
-    },
-    {
-      "rank": 6,
-      "student": {
-        "id": "26014736",
-        "name": "Học sinh 26014736",
-        "studentCode": "26014736"
-      },
-      "scores": {
-        "toan": 9.8,
-        "vat_li": 9.5,
-        "hoa_hoc": 9.99
-      },
-      "total": 29.29,
-      "average": 9.76
-    },
-    {
-      "rank": 7,
-      "student": {
-        "id": "28035804",
-        "name": "Học sinh 28035804",
-        "studentCode": "28035804"
-      },
-      "scores": {
-        "toan": 9.2,
-        "vat_li": 9.99,
-        "hoa_hoc": 9.99
-      },
-      "total": 29.18,
-      "average": 9.73
-    },
-    {
-      "rank": 8,
-      "student": {
-        "id": "32005631",
-        "name": "Học sinh 32005631",
-        "studentCode": "32005631"
-      },
-      "scores": {
-        "toan": 9.2,
-        "vat_li": 9.99,
-        "hoa_hoc": 9.99
-      },
-      "total": 29.18,
-      "average": 9.73
-    },
-    {
-      "rank": 9,
-      "student": {
-        "id": "19002020",
-        "name": "Học sinh 19002020",
-        "studentCode": "19002020"
-      },
-      "scores": {
-        "toan": 9.2,
-        "vat_li": 9.99,
-        "hoa_hoc": 9.99
-      },
-      "total": 29.18,
-      "average": 9.73
-    },
-    {
-      "rank": 10,
-      "student": {
-        "id": "03005012",
-        "name": "Học sinh 03005012",
-        "studentCode": "03005012"
-      },
-      "scores": {
-        "toan": 9.4,
-        "vat_li": 9.75,
-        "hoa_hoc": 9.99
-      },
-      "total": 29.14,
-      "average": 9.71
-    }
-  ],
-  "pagination": {
-    "total": 1061605,
-    "limit": 10,
-    "offset": 0
-  }
-};
-
-// Tính lại tổng điểm và điểm trung bình sau khi chuẩn hóa điểm 9.99 -> 10
-const normalizedStudentsData = {
-  ...topStudentsData,
-  topStudents: topStudentsData.topStudents.map(student => {
-    // Chuẩn hóa điểm
-    const normalizedScores = {
-      toan: normalizeScore(student.scores.toan),
-      vat_li: normalizeScore(student.scores.vat_li),
-      hoa_hoc: normalizeScore(student.scores.hoa_hoc)
-    };
-    
-    // Tính lại tổng điểm và điểm trung bình
-    const normalizedTotal = normalizedScores.toan + normalizedScores.vat_li + normalizedScores.hoa_hoc;
-    const normalizedAverage = normalizedTotal / 3;
-    
-    return {
-      ...student,
-      scores: normalizedScores,
-      total: parseFloat(normalizedTotal.toFixed(2)),
-      average: parseFloat(normalizedAverage.toFixed(2))
-    };
-  })
-};
-
 const Dashboard: React.FC = () => {
+  const [topStudentsData, setTopStudentsData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const data = await getTopStudentsGroupA(10, 0);
+        setTopStudentsData(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching top students data:', err);
+        setError('Không thể tải dữ liệu. Vui lòng thử lại sau.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Hiện loading state khi đang tải dữ liệu
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin text-primary text-4xl">
+          {renderIcon(FaSpinner)}
+        </div>
+      </div>
+    );
+  }
+
+  // Hiện thông báo lỗi nếu không lấy được dữ liệu
+  if (error || !topStudentsData) {
+    return (
+      <div className="text-center text-red-500 p-4">
+        <p>{error || 'Không có dữ liệu'}</p>
+      </div>
+    );
+  }
+
+  // Tính lại tổng điểm và điểm trung bình sau khi chuẩn hóa điểm 9.99 -> 10
+  const normalizedStudentsData = {
+    ...topStudentsData,
+    topStudents: topStudentsData.topStudents.map((student: any) => {
+      // Chuẩn hóa điểm
+      const normalizedScores = {
+        toan: normalizeScore(student.scores.toan),
+        vat_li: normalizeScore(student.scores.vat_li),
+        hoa_hoc: normalizeScore(student.scores.hoa_hoc)
+      };
+      
+      // Tính lại tổng điểm và điểm trung bình
+      const normalizedTotal = normalizedScores.toan + normalizedScores.vat_li + normalizedScores.hoa_hoc;
+      const normalizedAverage = normalizedTotal / 3;
+      
+      return {
+        ...student,
+        scores: normalizedScores,
+        total: parseFloat(normalizedTotal.toFixed(2)),
+        average: parseFloat(normalizedAverage.toFixed(2))
+      };
+    })
+  };
+
   // Hiển thị biểu tượng huy chương cho top 3
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
-        return FaTrophy({ className: "text-yellow-500", size: 24 });
+        return <div className="text-yellow-500">{renderIcon(FaTrophy, { size: 24 })}</div>;
       case 2:
-        return FaMedal({ className: "text-gray-400", size: 24 });
+        return <div className="text-gray-400">{renderIcon(FaMedal, { size: 24 })}</div>;
       case 3:
-        return FaMedal({ className: "text-amber-700", size: 24 });
+        return <div className="text-amber-700">{renderIcon(FaMedal, { size: 24 })}</div>;
       default:
         return <span className="w-6 h-6 flex items-center justify-center bg-blue-100 text-blue-800 rounded-full font-semibold">{rank}</span>;
     }
@@ -234,21 +128,21 @@ const Dashboard: React.FC = () => {
 
   // Dữ liệu cho biểu đồ so sánh điểm các môn học
   const chartData = {
-    labels: normalizedStudentsData.topStudents.slice(0, 5).map(item => `HS ${item.student.studentCode.slice(-4)}`),
+    labels: normalizedStudentsData.topStudents.slice(0, 5).map((item: any) => `HS ${item.student.studentCode.slice(-4)}`),
     datasets: [
       {
         label: 'Toán',
-        data: normalizedStudentsData.topStudents.slice(0, 5).map(item => item.scores.toan),
+        data: normalizedStudentsData.topStudents.slice(0, 5).map((item: any) => item.scores.toan),
         backgroundColor: 'rgba(54, 162, 235, 0.7)',
       },
       {
         label: 'Vật lý',
-        data: normalizedStudentsData.topStudents.slice(0, 5).map(item => item.scores.vat_li),
+        data: normalizedStudentsData.topStudents.slice(0, 5).map((item: any) => item.scores.vat_li),
         backgroundColor: 'rgba(255, 99, 132, 0.7)',
       },
       {
         label: 'Hóa học',
-        data: normalizedStudentsData.topStudents.slice(0, 5).map(item => item.scores.hoa_hoc),
+        data: normalizedStudentsData.topStudents.slice(0, 5).map((item: any) => item.scores.hoa_hoc),
         backgroundColor: 'rgba(75, 192, 192, 0.7)',
       },
     ],
@@ -274,9 +168,9 @@ const Dashboard: React.FC = () => {
   };
 
   // Tính toán thống kê tổng quan
-  const totalMathScore = normalizedStudentsData.topStudents.reduce((sum, item) => sum + item.scores.toan, 0);
-  const totalPhysicsScore = normalizedStudentsData.topStudents.reduce((sum, item) => sum + item.scores.vat_li, 0);
-  const totalChemistryScore = normalizedStudentsData.topStudents.reduce((sum, item) => sum + item.scores.hoa_hoc, 0);
+  const totalMathScore = normalizedStudentsData.topStudents.reduce((sum: number, item: any) => sum + item.scores.toan, 0);
+  const totalPhysicsScore = normalizedStudentsData.topStudents.reduce((sum: number, item: any) => sum + item.scores.vat_li, 0);
+  const totalChemistryScore = normalizedStudentsData.topStudents.reduce((sum: number, item: any) => sum + item.scores.hoa_hoc, 0);
   
   const avgMathScore = (totalMathScore / normalizedStudentsData.topStudents.length).toFixed(2);
   const avgPhysicsScore = (totalPhysicsScore / normalizedStudentsData.topStudents.length).toFixed(2);
@@ -301,8 +195,8 @@ const Dashboard: React.FC = () => {
               <h3 className="text-2xl font-bold text-blue-500">{avgMathScore}</h3>
               <p className="text-xs text-gray-500 mt-1">Top 10 học sinh xuất sắc</p>
             </div>
-            <div className="bg-blue-100 p-3 rounded-lg">
-              {FaGraduationCap({ size: 24, className: "text-blue-500" })}
+            <div className="bg-blue-100 p-3 rounded-lg text-blue-500">
+              {renderIcon(FaGraduationCap, { size: 24 })}
             </div>
           </div>
         </div>
@@ -314,8 +208,8 @@ const Dashboard: React.FC = () => {
               <h3 className="text-2xl font-bold text-pink-500">{avgPhysicsScore}</h3>
               <p className="text-xs text-gray-500 mt-1">Top 10 học sinh xuất sắc</p>
             </div>
-            <div className="bg-pink-100 p-3 rounded-lg">
-              {FaChartLine({ size: 24, className: "text-pink-500" })}
+            <div className="bg-pink-100 p-3 rounded-lg text-pink-500">
+              {renderIcon(FaChartLine, { size: 24 })}
             </div>
           </div>
         </div>
@@ -327,8 +221,8 @@ const Dashboard: React.FC = () => {
               <h3 className="text-2xl font-bold text-teal-500">{avgChemistryScore}</h3>
               <p className="text-xs text-gray-500 mt-1">Top 10 học sinh xuất sắc</p>
             </div>
-            <div className="bg-teal-100 p-3 rounded-lg">
-              {FaChartLine({ size: 24, className: "text-teal-500" })}
+            <div className="bg-teal-100 p-3 rounded-lg text-teal-500">
+              {renderIcon(FaChartLine, { size: 24 })}
             </div>
           </div>
         </div>
@@ -349,7 +243,7 @@ const Dashboard: React.FC = () => {
           <h2 className="text-lg font-semibold mb-4">Top 3 học sinh xuất sắc</h2>
           
           <div className="space-y-4">
-            {normalizedStudentsData.topStudents.slice(0, 3).map((student) => (
+            {normalizedStudentsData.topStudents.slice(0, 3).map((student: any) => (
               <div key={student.student.id} className="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
                 <div className="mr-4">
                   {getRankIcon(student.rank)}
@@ -396,7 +290,7 @@ const Dashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {normalizedStudentsData.topStudents.map((student) => (
+              {normalizedStudentsData.topStudents.map((student: any) => (
                 <tr 
                   key={student.student.id} 
                   className={`hover:bg-gray-50 ${student.rank <= 3 ? 'bg-blue-50' : ''} border-b border-gray-200`}
