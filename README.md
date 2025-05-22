@@ -1,5 +1,3 @@
-
-
 Ứng dụng web hiển thị và phân tích điểm thi THPT 2024.
 
 ## Tính năng
@@ -108,3 +106,35 @@ g-scores/
 ## Đóng góp
 
 Dự án được phát triển cho mục đích học tập và tìm hiểu về phân tích dữ liệu điểm thi. 
+
+# G-Scores Dockerfile Tất Cả Trong Một
+
+File Dockerfile này kết hợp tất cả các dịch vụ (MySQL, Backend, Frontend) vào một container duy nhất, thay thế cho thiết lập docker-compose ban đầu.
+
+## Cách sử dụng
+
+### Xây dựng image
+
+```bash
+# Đảm bảo bạn đang ở thư mục gốc (g-scores)
+docker build -t g-scores-all-in-one .
+```
+
+### Chạy container
+
+```bash
+docker run -d -p 3306:3306 -p 5000:5000 -p 3000:3000 -v ./dataset:/app/backend/dataset --name g-scores g-scores-all-in-one
+```
+
+### Truy cập các dịch vụ
+
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:5000
+- MySQL Database: localhost:3306
+
+## Lưu ý
+
+- Giải pháp này kết hợp tất cả dịch vụ vào một container và không được khuyến nghị cho môi trường sản xuất
+- Để phát triển, thiết lập docker-compose ban đầu thường linh hoạt hơn
+- Container này sẽ sử dụng nhiều tài nguyên hơn vì chạy nhiều dịch vụ cùng lúc
+- Nếu một dịch vụ gặp sự cố, Supervisord sẽ cố gắng khởi động lại nó
