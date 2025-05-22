@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: g-scores
+    env: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 10000
+    buildCommand: docker build -t g-scores-all-in-one .
+    startCommand: "/usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf" 
