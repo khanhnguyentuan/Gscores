@@ -36,9 +36,9 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
   // Khởi động ứng dụng
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`Ứng dụng đang chạy trên cổng ${port}`);
+  const port = process.env.PORT || 5000;
+  console.log(`Ứng dụng đang chạy trên 0.0.0.0:${port}`);
+  await app.listen(port, '0.0.0.0');
 }
 
 bootstrap();
