@@ -29,15 +29,15 @@ RUN npm run build
 # Chỉnh sửa cấu hình backend để lắng nghe 0.0.0.0
 RUN sed -i 's/localhost/0.0.0.0/g' dist/main.js || true
 
-# Thiết lập frontend
+# Thiết lập frontend (build production)
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ .
+RUN npm run build
 
-# Chỉnh sửa cấu hình frontend để lắng nghe 0.0.0.0
-RUN sed -i 's/localhost/0.0.0.0/g' node_modules/react-scripts/config/webpackDevServer.config.js || true
-RUN sed -i 's/host: .*/host: "0.0.0.0",/g' node_modules/react-scripts/config/webpackDevServer.config.js || true
+# Cài đặt 'serve' để chạy static build
+RUN npm install -g serve
 
 # Thiết lập biến môi trường
 ENV DB_HOST=localhost
