@@ -23,7 +23,7 @@
 - **Frontend**: React với TypeScript và TailwindCSS
 - **Database**: MySQL (phát triển) / PostgreSQL (triển khai)
 - **Container**: Docker và Docker Compose
-- **Deployment**: Render (Backend, Frontend, Database)
+- **Deployment**: Railways, Vercel (Backend, Frontend, Database)
 
 ## Cấu trúc dự án
 
