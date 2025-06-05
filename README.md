@@ -6,6 +6,8 @@
 - Phân tích điểm theo 4 mức: >=8, 6-8, 4-6, <4
 - Danh sách top học sinh khối A (Toán, Lý, Hóa)
 - Giao diện responsive, thân thiện với người dùng
+## Demo video ( trong trường hợp BE hết hạn)
+[![Demo video](https://img.youtube.com/vi/6xFmjgz3O5M/hqdefault.jpg)](https://youtu.be/6xFmjgz3O5M)
 ## Giao diện
 - Tra cứu điểm thi
 ![image](https://github.com/user-attachments/assets/72ecf792-49ac-4e78-84b5-294353861294)
